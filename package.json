@@ -1,12 +1,36 @@
 {
-  "name": "@w2inc/xgraph",
-  "version": "0.0.1",
-  "module": "index.ts",
-  "type": "module",
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+    "name": "@w2inc/xgraph",
+    "type": "module",
+    "version": "0.0.3",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "description": "",
+    "exports": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "scripts": {
+      "build": "bun run build.ts",
+      "prepublishOnly": "bun run build"
+    },
+    "files": [
+      "dist"
+    ],
+    "keywords": [
+      "bun"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/w2inc/xgraph#readme",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/w2inc/xgraph.git"
+    },
+    "bugs": "https://github.com/w2inc/xgraph/issues",
+    "author": "Robert Soriano <sorianorobertc@gmail.com>",
+    "devDependencies": {
+      "bun-plugin-dts": "^0.3.0",
+      "@types/bun": "latest"
+    }
   }
-}
