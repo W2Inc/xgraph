@@ -1,124 +1,173 @@
-import { EndianType } from "./meta";
+// ============================================================================
+// W2Inc, Amsterdam 2023-2024, All Rights Reserved.
+// See README in the root project for more information.
+// ============================================================================
 
-export abstract class BaseEndianReader {
-	private position: number;
-	private view: DataView;
-	protected buffer: ArrayBuffer;
+/** LE Reader */
+export class BaseEndianReader {
+	protected position = 0;
+	protected buffer: Buffer;
 
-	constructor(buffer: ArrayBuffer) {
-		this.buffer = buffer;
-		this.view = new DataView(buffer);
-		this.position = 0;
+	/**
+	 * Initialize the reader with a buffer.
+	 * @param buffer The buffer to read from.
+	 */
+	constructor(buffer: WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>) {
+		this.buffer = Buffer.from(buffer);
 	}
 
-	private advancePosition(bytes: number): number {
-		const currentPosition = this.position;
-		this.position += bytes;
-		if (this.position > this.buffer.byteLength)
-			throw new Error("Attempt to read beyond buffer length");
-		return currentPosition;
-	}
-
-	protected readCString(): string | null {
-		const bytes: number[] = [];
-		while (this.position < this.buffer.byteLength) {
-			const byte = this.view.getUint8(this.advancePosition(1));
-			if (byte === 0) break; // Null terminator
-			bytes.push(byte);
-		}
-		return new TextDecoder().decode(new Uint8Array(bytes));
-	}
-
-	protected readAlignment(alignment: number): void {
-		const alignedPosition =
-			(this.position + (alignment - 1)) & ~(alignment - 1);
-		this.position = alignedPosition;
-	}
-
+	/**
+	 * Read a boolean encoded as a UInt8.
+	 * @returns The boolean value.
+	 */
 	protected readBool(): boolean {
-		return this.view.getUint8(this.advancePosition(1)) !== 0;
+		this.ensureAvailable(1);
+		const value = this.buffer.readUInt8(this.position);
+		this.position += 1;
+		return value !== 0;
 	}
 
-	protected readInt16(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getInt16(
-			this.advancePosition(2),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 16-bit signed integer.
+	 * @returns The number value.
+	 */
+	protected readInt16(): number {
+		this.ensureAvailable(2);
+		const value = this.buffer.readInt16LE(this.position);
+		this.position += 2;
+		return value;
 	}
 
-	protected readUInt16(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getUint16(
-			this.advancePosition(2),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 16-bit unsigned integer.
+	 * @returns The number value.
+	 */
+	protected readUInt16(): number {
+		this.ensureAvailable(2);
+		const value = this.buffer.readUInt16LE(this.position);
+		this.position += 2;
+		return value;
 	}
 
-	protected readInt32(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getInt32(
-			this.advancePosition(4),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 32-bit signed integer.
+	 * @returns The number value.
+	 */
+	protected readInt32(): number {
+		this.ensureAvailable(4);
+		const value = this.buffer.readInt32LE(this.position);
+		this.position += 4;
+		return value;
 	}
 
-	protected readUInt32(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getUint32(
-			this.advancePosition(4),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 32-bit unsigned integer.
+	 * @returns The number value.
+	 */
+	protected readUInt32(): number {
+		this.ensureAvailable(4);
+		const value = this.buffer.readUInt32LE(this.position);
+		this.position += 4;
+		return value;
 	}
 
-	protected readLong(endian: EndianType = EndianType.LITTLE): bigint {
-		return this.view.getBigInt64(
-			this.advancePosition(8),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 64-bit signed integer.
+	 * @returns The bigint value.
+	 */
+	protected readLong(): bigint {
+		this.ensureAvailable(8);
+		const value = this.buffer.readBigInt64LE(this.position);
+		this.position += 8;
+		return value;
 	}
 
-	protected readULong(endian: EndianType = EndianType.LITTLE): bigint {
-		return this.view.getBigUint64(
-			this.advancePosition(8),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 64-bit unsigned integer.
+	 * @returns The bigint value.
+	 */
+	protected readULong(): bigint {
+		this.ensureAvailable(8);
+		const value = this.buffer.readBigUInt64LE(this.position);
+		this.position += 8;
+		return value;
 	}
 
-	protected readFloat(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getFloat32(
-			this.advancePosition(4),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 32-bit floating-point number.
+	 * @returns The number value.
+	 */
+	protected readFloat(): number {
+		this.ensureAvailable(4);
+		const value = this.buffer.readFloatLE(this.position);
+		this.position += 4;
+		return value;
 	}
 
-	protected readDouble(endian: EndianType = EndianType.LITTLE): number {
-		return this.view.getFloat64(
-			this.advancePosition(8),
-			endian === EndianType.LITTLE
-		);
+	/**
+	 * Read a 64-bit double-precision number.
+	 * @returns The number value.
+	 */
+	protected readDouble(): number {
+		this.ensureAvailable(8);
+		const value = this.buffer.readDoubleLE(this.position);
+		this.position += 8;
+		return value;
 	}
 
-	protected readGuid(endian: EndianType = EndianType.LITTLE): string {
-		const bytes = new Uint8Array(16);
-		for (let i = 0; i < 16; i++) {
-			bytes[i] = this.view.getUint8(this.advancePosition(1));
+	/**
+	 * Read a UTF-8 null-terminated string.
+	 * @returns The string value.
+	 */
+	protected readCString(): string {
+		const start = this.position;
+		while (this.position < this.buffer.length && this.buffer[this.position] !== 0) {
+			this.position++;
 		}
-		if (endian === EndianType.BIG) {
-			// Swap byte order for big-endian
-			bytes.set(bytes.slice(0, 4).reverse(), 0);
-			bytes.set(bytes.slice(4, 6).reverse(), 4);
-			bytes.set(bytes.slice(6, 8).reverse(), 6);
+		if (this.position >= this.buffer.length) {
+			throw new Error("CString terminator not found.");
 		}
-		// Convert to GUID string format
-		return [
-			this.toHex(bytes.slice(0, 4)),
-			this.toHex(bytes.slice(4, 6)),
-			this.toHex(bytes.slice(6, 8)),
-			this.toHex(bytes.slice(8, 10)),
-			this.toHex(bytes.slice(10, 16)),
+		// Read string bytes and skip the null terminator
+		const value = this.buffer.toString("utf8", start, this.position);
+		this.position++;
+		return value;
+	}
+
+	/**
+	 * Read a GUID (UUID) as a string.
+	 * @returns The GUID string.
+	 */
+	protected readGuid(): string {
+		this.ensureAvailable(16);
+		const bytes = this.buffer.subarray(this.position, this.position + 16);
+		this.position += 16;
+
+		// Convert bytes to GUID string format
+		const guid = [
+			bytes.toString("hex", 0, 4),
+			bytes.toString("hex", 4, 6),
+			bytes.toString("hex", 6, 8),
+			bytes.toString("hex", 8, 10),
+			bytes.toString("hex", 10, 16),
 		].join("-");
+		return guid;
 	}
 
-	private toHex(bytes: Uint8Array): string {
-		return Array.from(bytes)
-			.map((byte) => byte.toString(16).padStart(2, "0"))
-			.join("");
+	/**
+	 * Skip a specified number of bytes.
+	 * @param byteCount The number of bytes to skip.
+	 */
+	protected readAlignment(alignment: number): void {
+		this.position = (this.position + (alignment - 1)) & -alignment;
+	}
+
+	/**
+	 * Ensure that a specified number of bytes is available to read.
+	 * @param size The required number of bytes.
+	 */
+	private ensureAvailable(size: number): void {
+		if (this.position + size > this.buffer.length) {
+			throw new Error("Attempt to read beyond buffer length.");
+		}
 	}
 }
