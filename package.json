@@ -13,7 +13,8 @@
     },
     "scripts": {
         "build": "bun run build.ts",
-        "prepublishOnly": "bun run build"
+        "prepublishOnly": "bun run build",
+        "prettier": "prettier --write ./src"
     },
     "files": [
         "dist"
@@ -30,8 +31,9 @@
     "bugs": "https://github.com/w2inc/xgraph/issues",
     "author": "Robert Soriano <sorianorobertc@gmail.com>",
     "devDependencies": {
+        "@types/bun": "latest",
         "bun-plugin-dts": "^0.3.0",
-        "@types/bun": "latest"
+        "prettier": "^3.4.1"
     },
     "publishConfig": {
         "registry": "https://npm.pkg.github.com",

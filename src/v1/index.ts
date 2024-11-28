@@ -5,14 +5,32 @@
 
 import { BaseEndianReader, BaseEndianWriter } from "../endian";
 
+// ============================================================================
+
+function computeChecksum(data: Buffer): number {
+	let checksum = 0;
+	for (let i = 0; i < data.byteLength; i++) {
+		checksum = (checksum + data.readUint8(i)) & 0xffffffff;
+	}
+	return checksum;
+}
+
+// ============================================================================
+
 /** Version 1 of XGraph */
 export namespace XGraphV1 {
-	/** Different indetifying version of the XGraph */
-	export const VERSION = 0x22446688;
-	export const MAGIC = BigInt(0xb0b0bebafeca);
+	export const VERSION = 0x100;
+	export const MAGIC = BigInt(0x48_50_41_52_47_58); // XGRAPH
 	export const MAX_NODES = 4;
 	export const MAX_GOALS = 3;
 	export const MAX_DEPTH = 255;
+
+	export enum GoalState {
+		NotStarted = 0,
+		InProgress = 1,
+		Completed = 2,
+		Failed = 3,
+	}
 
 	/** Header layout of XGraph */
 	export interface Header {
@@ -24,13 +42,14 @@ export namespace XGraphV1 {
 
 	export interface Goal {
 		name: string;
-		goalId: string /** @type GUID */;
+		goalGUID: string;
+		state: GoalState;
+		description: string;
 	}
 
 	export interface Node {
 		id: number;
 		parentId: number;
-		isRoot: boolean;
 		goals: Goal[];
 		children: Node[];
 	}
@@ -46,71 +65,70 @@ export namespace XGraphV1 {
 		public root?: Node;
 
 		constructor(data: ArrayBuffer) {
-			super(data)
+			super(data);
+			this.validateChecksum();
 		}
 
 		public deserialize(): void {
 			// Header
-
-			// Verify version
 			this.version = this.readInt32();
-			if (this.version !== XGraphV1.VERSION)
-				throw new Error("Invalid XGraphV1 Version")
-
+			if (this.version !== XGraphV1.VERSION) throw new Error("Invalid XGraphV1 Version");
 
 			// Verify magic
 			this.readAlignment(16);
 			let magic = this.readULong();
-			if (magic !== XGraphV1.MAGIC)
-				throw new Error("Invalid XGraphV1 Magic")
+			if (magic !== XGraphV1.MAGIC) throw new Error("Invalid XGraphV1 Magic");
 
 			// Total count for validation
 			let nodeCount = this.readInt16();
 			let goalCount = this.readInt16();
-			if (nodeCount > MAX_NODES)
-				throw new Error(`Invalid XGraphV1 node count of: ${nodeCount}`)
-			if (goalCount > MAX_GOALS)
-				throw new Error(`Invalid XGraphV1 goal count of: ${goalCount}`)
+			if (nodeCount > MAX_NODES) throw new Error(`Invalid XGraphV1 node count of: ${nodeCount}`);
+			if (goalCount > MAX_GOALS) throw new Error(`Invalid XGraphV1 goal count of: ${goalCount}`);
 			this.readAlignment(16);
 
 			// Body
 			this.readNode(0);
 		}
 
-		// public get rootNode(): Node {
-		// 	if (!this.root)
-		// 		throw new Error("Failed to parse graph data.");
-		// 	return this.root;
-		// }
+		private validateChecksum(): void {
+			if (this.buffer.byteLength < 4) {
+				throw new Error("Checksum not computable");
+			}
+
+			const view = this.buffer.subarray(0, this.position - 4);
+			const currentChecksum = this.buffer.readUint32LE(this.buffer.byteLength - 4);
+			const expectedChecksum = computeChecksum(view);
+			if (currentChecksum !== expectedChecksum) {
+				throw new Error(`Invalid Checksum Has: ${currentChecksum}, Got: ${expectedChecksum}`);
+			}
+		}
 
 		private readNode(depth: number, parent?: Node) {
-			if (depth > MAX_DEPTH)
-				throw new Error(`Graph with a depth of: {depth} is too large`);
+			if (depth > MAX_DEPTH) throw new Error(`Graph with a depth of: {depth} is too large`);
 
 			let id = this.readInt16();
 			let parentId = this.readInt16();
-			let isRoot = this.readBool();
 			let goalCount = this.readInt16();
 			let childrenCount = this.readInt16();
 
-			if (goalCount > MAX_GOALS)
-				throw new Error(`Node can't have more than ${MAX_GOALS} goals`);
+			if (goalCount > MAX_GOALS) throw new Error(`Node can't have more than ${MAX_GOALS} goals`);
 			if (childrenCount > MAX_NODES)
-					throw new Error(`Node can't have more than ${MAX_NODES} children`);
+				throw new Error(`Node can't have more than ${MAX_NODES} children`);
 
 			let node: Node = {
 				id,
 				parentId,
-				isRoot,
 				goals: [],
-				children: []
-			}
+				children: [],
+			};
 
 			for (let i = 0; i < goalCount; i++) {
 				node.goals.push({
 					name: this.readCString(),
-					goalId: this.readGuid()
-				})
+					goalGUID: this.readGuid(),
+					state: this.readUInt32(),
+					description: this.readCString(),
+				});
 			}
 
 			// First node indicates root, always.
@@ -119,7 +137,6 @@ export namespace XGraphV1 {
 			} else {
 				parent?.children.push(node);
 			}
-
 
 			this.readAlignment(8);
 			for (let i = 0; i < childrenCount; i++) {
@@ -145,15 +162,16 @@ export namespace XGraphV1 {
 
 			// Body
 			this.writeNode(-1, node, 0);
+
+			// Checksum
+			this.finalizeChecksum();
 		}
 
 		private writeNode(parentId: number, node: Node, depth: number) {
-			if (depth > MAX_DEPTH)
-				throw new Error(`Graph with a depth of: ${depth} is too large!`);
+			if (depth > MAX_DEPTH) throw new Error(`Graph with a depth of: ${depth} is too large!`);
 
 			this.writeInt16(node.id); // Current Id
 			this.writeInt16(parentId); // Parent Id
-			this.writeBool(node.id == 0); // isRoot
 
 			if (node.goals.length > MAX_GOALS)
 				throw new Error(`Node can't have more than ${MAX_GOALS} goals.`);
@@ -164,7 +182,9 @@ export namespace XGraphV1 {
 			this.writeInt16(node.children.length); // This node is made up N Children nodes
 			for (const goal of node.goals) {
 				this.writeCString(goal.name);
-				this.writeGuid(goal.goalId);
+				this.writeGuid(goal.goalGUID);
+				this.writeUInt32(goal.state);
+				this.writeCString(goal.description);
 			}
 
 			this.writePadding(8);
@@ -173,23 +193,19 @@ export namespace XGraphV1 {
 			}
 		}
 
+		private finalizeChecksum(): void {
+			const view = this.buffer.subarray(0, this.buffer.byteLength - 4);
+			this.writeUInt32(computeChecksum(view));
+		}
+
 		private getTotalNodeCount(node: Node): number {
-			return (
-				1 +
-				node.children.reduce(
-					(sum, child) => sum + this.getTotalNodeCount(child),
-					0
-				)
-			);
+			return 1 + node.children.reduce((sum, child) => sum + this.getTotalNodeCount(child), 0);
 		}
 
 		private getTotalGoalCount(node: Node): number {
 			return (
 				node.goals.length +
-				node.children.reduce(
-					(sum, child) => sum + this.getTotalGoalCount(child),
-					0
-				)
+				node.children.reduce((sum, child) => sum + this.getTotalGoalCount(child), 0)
 			);
 		}
 	}

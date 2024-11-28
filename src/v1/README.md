@@ -1,147 +1,148 @@
-# RFC: XGraph V1 Binary File Format Specification
+### **Request for Comments: XGraph Binary File Format Version 1.0**
 
-## Author
-W2Inc, Amsterdam 2023-2024
+#### **Abstract**
 
----
-
-## Introduction
-
-This document provides the specification for the XGraph V1 binary file format. The format is designed to represent hierarchical graphs with nodes and goals, ensuring a compact and efficient structure for serialization and deserialization. The specification supports validation to ensure integrity during reading and writing processes.
+This document specifies the binary layout for the XGraph data serialization format. XGraph is a compact, extensible format for representing hierarchical node-graph structures with goals and their associated metadata. Version 1.0 incorporates several enhancements over previous designs, including better memory layout, extensibility, and integrity validation via checksum.
 
 ---
 
-## File Structure Overview
+### **1. File Structure**
 
-The XGraph V1 binary format consists of two main sections:
+The XGraph file format consists of three main sections:
 
-1. **Header Section**: Contains metadata for validating and initializing the graph.
-2. **Body Section**: Contains hierarchical node data, including goals and relationships.
+1. **Header**: Metadata describing the file and overall graph.
+2. **Body**: Serialized graph data, including nodes and goals.
+3. **Footer**: Checksum for integrity validation.
 
----
+#### **1.1 Layout Overview**
 
-## Data Alignment
-
-- All data fields are aligned to **8-byte** or **16-byte** boundaries where specified.
-- Padding bytes (`0x00`) are used to ensure proper alignment.
-
----
-
-## Header Layout
-
-The header is a fixed-size structure containing the following fields:
-
-| Field         | Offset | Size   | Type       | Description                                    |
-|---------------|--------|--------|------------|------------------------------------------------|
-| `version`     | 0x00   | 4 bytes | `uint32`   | Version identifier (`0x22446688`)             |
-| Padding       | 0x04   | 12 bytes| `padding`  | Reserved for alignment (16 bytes total)       |
-| `magic`       | 0x10   | 8 bytes | `uint64`   | Magic number (`0xB0B0BEBAFECA`)               |
-| `nodeCount`   | 0x18   | 2 bytes | `uint16`   | Total number of nodes in the graph            |
-| `goalCount`   | 0x1A   | 2 bytes | `uint16`   | Total number of goals in the graph            |
-| Padding       | 0x1C   | 4 bytes | `padding`  | Reserved for alignment (16 bytes total)       |
-
----
-
-## Node Layout
-
-Each node represents a single element in the graph hierarchy. Nodes are stored recursively in depth-first order.
-
-| Field            | Offset  | Size   | Type       | Description                                |
-|-------------------|---------|--------|------------|--------------------------------------------|
-| `id`             | 0x00    | 2 bytes| `int16`    | Unique identifier for the node             |
-| `parentId`       | 0x02    | 2 bytes| `int16`    | Identifier of the parent node (`-1` for root) |
-| `isRoot`         | 0x04    | 1 byte | `bool`     | `true` if this is the root node            |
-| `goalCount`      | 0x05    | 2 bytes| `int16`    | Number of goals associated with this node  |
-| `childrenCount`  | 0x07    | 2 bytes| `int16`    | Number of child nodes                      |
-| Padding          | 0x09    | 7 bytes| `padding`  | Reserved for alignment (8 bytes total)     |
-| Goals            | 0x10+   | N bytes| See below  | List of associated goals                   |
-| Children         | N/A     | N bytes| Recursive  | Child node entries (depth-first traversal) |
-
----
-
-### Goal Layout
-
-Each goal is associated with a node and consists of:
-
-| Field    | Offset | Size   | Type       | Description                   |
-|----------|--------|--------|------------|-------------------------------|
-| `name`   | 0x00   | N bytes| `cstring`  | Null-terminated string for the goal name |
-| `goalId` | N/A    | 16 bytes| `GUID`    | Unique identifier for the goal |
-
----
-
-## Constraints and Validations
-
-### Header Constraints
-- **Version**: Must match the constant `0x22446688`.
-- **Magic Number**: Must match the constant `0xB0B0BEBAFECA`.
-- **Node Count**: Cannot exceed `MAX_NODES` (4).
-- **Goal Count**: Cannot exceed `MAX_GOALS` (3).
-
-### Node Constraints
-- **Depth**: Maximum depth is `MAX_DEPTH` (255).
-- **Children Count**: A node cannot have more than `MAX_NODES` children.
-- **Goal Count**: A node cannot have more than `MAX_GOALS` goals.
-
----
-
-## Example Binary Layout
-
-### Example Graph
-
-A simple graph with the following structure:
-
-```
-Root (ID: 0)
-├─ Child1 (ID: 1)
-│  ├─ GrandChild1 (ID: 2)
-│  └─ GrandChild2 (ID: 3)
-└─ Child2 (ID: 4)
+```plaintext
++------------------------+
+|       Header           |
++------------------------+
+|       Body             |
++------------------------+
+|       Footer           |
++------------------------+
 ```
 
-### Serialized Representation
+---
 
-#### Header
-| Offset | Field         | Value        |
-|--------|---------------|--------------|
-| 0x00   | `version`     | `0x22446688` |
-| 0x10   | `magic`       | `0xB0B0BEBAFECA` |
-| 0x18   | `nodeCount`   | `5`          |
-| 0x1A   | `goalCount`   | `0`          |
+### **2. Header**
 
-#### Body
-| Offset | Field           | Value       |
-|--------|-----------------|-------------|
-| 0x20   | Node 0          | Root Node   |
-| 0x40   | Node 1          | Child1      |
-| 0x60   | Node 2          | GrandChild1 |
-| 0x80   | Node 3          | GrandChild2 |
-| 0xA0   | Node 4          | Child2      |
+The header provides high-level metadata and constraints for the file. All multi-byte fields are stored in **big-endian** format.
+
+| Field             | Offset (Bytes) | Length (Bytes) | Description                                      |
+| ----------------- | -------------- | -------------- | ------------------------------------------------ |
+| **Version**       | 0              | 2              | XGraph format version (`0x0100` for v1.0).       |
+| **Compatibility** | 2              | 2              | Minimum compatible reader version.               |
+| **Magic**         | 4              | 8              | Magic number (`0x584752415048`, ASCII "XGRAPH"). |
+| **Total Nodes**   | 12             | 2              | Total number of nodes in the graph.              |
+| **Total Goals**   | 14             | 2              | Total number of goals in the graph.              |
+| **Reserved**      | 16             | 8              | Reserved for future use (set to `0`).            |
+| **Padding**       | 24             | 8              | Padding to align to a 32-byte boundary.          |
+
+#### **2.1 Magic Number**
+
+The magic number ensures that the file is recognized as an XGraph file. It is a fixed 64-bit value representing the ASCII string "XGRAPH".
+
+#### **2.2 Compatibility**
+
+The compatibility field specifies the minimum version of the reader required to parse this file, allowing for graceful degradation in future versions.
 
 ---
 
-## Error Handling
+### **3. Body**
 
-1. **Version Mismatch**: Throw an `Invalid XGraphV1 Version` error if `version` does not match.
-2. **Magic Mismatch**: Throw an `Invalid XGraphV1 Magic` error if `magic` does not match.
-3. **Invalid Counts**: Validate `nodeCount` and `goalCount` against the specified limits.
-4. **Depth Errors**: Throw a `Graph too large` error if `depth > MAX_DEPTH`.
+The body contains the serialized graph data. It begins with the root node and includes all child nodes recursively. Each node specifies its ID, parent ID, goals, and child nodes.
+
+#### **3.1 Node Layout**
+
+Each node has the following structure:
+
+| Field           | Offset (Bytes) | Length (Bytes) | Description                            |
+| --------------- | -------------- | -------------- | -------------------------------------- |
+| **Node ID**     | 0              | 2              | Unique identifier for the node.        |
+| **Parent ID**   | 2              | 2              | ID of the parent node (`-1` for root). |
+| **Is Root**     | 4              | 1              | `1` if root node, otherwise `0`.       |
+| **Goal Count**  | 5              | 2              | Number of goals for this node.         |
+| **Child Count** | 7              | 2              | Number of child nodes.                 |
+| **Goals**       | 9              | Variable       | Serialized list of goals (see below).  |
+| **Children**    | N/A            | Variable       | Serialized list of child nodes.        |
+
+#### **3.2 Goal Layout**
+
+Each goal is serialized as follows:
+
+| Field           | Offset (Bytes) | Length (Bytes) | Description                          |
+| --------------- | -------------- | -------------- | ------------------------------------ |
+| **Name**        | 0              | Variable       | Null-terminated string (UTF-8).      |
+| **Goal ID**     | N/A            | 16             | GUID for the goal.                   |
+| **Description** | N/A            | Variable       | Null-terminated string (UTF-8).      |
+| **State**       | N/A            | 1              | Goal state (`0` = NotStarted, etc.). |
 
 ---
 
-## Extensions and Future Versions
+### **4. Footer**
 
-- Support for additional node properties (e.g., weights, metadata).
-- Increase limits for `MAX_NODES` and `MAX_GOALS`.
-- Backward-compatible versioning with a version field in the header.
+The footer contains a checksum for verifying file integrity.
 
----
-
-## References
-
-- BaseEndianReader and BaseEndianWriter utility documentation.
-- XGraph serialization and deserialization logic.
+| Field        | Offset (Bytes) | Length (Bytes) | Description                                         |
+| ------------ | -------------- | -------------- | --------------------------------------------------- |
+| **Checksum** | -4             | 4              | CRC-32 checksum of the entire file (except itself). |
 
 ---
 
-For further information, see the README or contact the W2Inc development team.
+### **5. Data Validation**
+
+To ensure robustness, readers must perform the following validations:
+
+1. **Magic Number**: Verify that the magic number matches `0x584752415048`.
+2. **Version Compatibility**: Ensure the `Compatibility` field is less than or equal to the reader's version.
+3. **Node and Goal Constraints**:
+   - Nodes must not exceed `MAX_NODES`.
+   - Goals must not exceed `MAX_GOALS`.
+   - Depth must not exceed `MAX_DEPTH`.
+4. **Checksum Validation**: Compute the CRC-32 checksum of the file and compare it with the footer value.
+
+---
+
+### **6. Example Serialization**
+
+#### **6.1 Sample Graph**
+
+A simple graph with a single root node and one child node.
+
+- **Root Node**:
+  - ID: 0, Parent ID: -1, 1 goal, 1 child.
+  - Goal: `{ name: "Root Goal", id: "123e4567-e89b-12d3-a456-426614174000", description: "Root goal description", state: InProgress }`.
+- **Child Node**:
+  - ID: 1, Parent ID: 0, 0 goals, 0 children.
+
+#### **6.2 Serialized Data**
+
+| Section   | Hexadecimal Representation                                    | Description                   |
+| --------- | ------------------------------------------------------------- | ----------------------------- |
+| Header    | `00 01 00 01 58 47 52 41 50 48 00 00 00 00 00 02 00 01 00`    | Version, magic, total counts. |
+| Root Node | `00 00 FF FF 01 00 01 00 01 "Root Goal\0" "..." 01 00 01 ...` | Serialized root node.         |
+| Footer    | `DE AD BE EF`                                                 | Checksum (example).           |
+
+---
+
+### **7. Future Enhancements**
+
+To improve scalability and extensibility, the following features are proposed for future versions:
+
+1. **Index Table**: Include an optional index of node offsets for faster access in large graphs.
+2. **Compressed Goals**: Add support for compressing the goals section using standard compression algorithms (e.g., zlib).
+3. **Optional Metadata**: Add graph-level metadata for description, creation time, and custom properties.
+
+---
+
+### **8. Conclusion**
+
+This updated XGraph format provides a compact, efficient, and extensible solution for serializing hierarchical graph structures. Its checksum validation ensures data integrity, while the version compatibility field guarantees backward compatibility. These features make XGraph suitable for a wide range of use cases, from configuration files to large-scale graph processing.
+
+For questions or suggestions, please contact the authors or submit an issue on the project's repository.
+
+---

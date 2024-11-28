@@ -38,8 +38,7 @@ export class BaseEndianWriter {
 	 * @param alignment The amount of bytes for ensuring the alignment.
 	 */
 	protected writePadding(alignment: number): void {
-		const alignedPosition =
-			(this.position + (alignment - 1)) & ~(alignment - 1);
+		const alignedPosition = (this.position + (alignment - 1)) & ~(alignment - 1);
 		const padding = alignedPosition - this.position;
 		if (padding > 0) {
 			this.ensureCapacity(padding);
@@ -144,12 +143,8 @@ export class BaseEndianWriter {
 	 */
 	protected writeGuid(value: string): void {
 		// Convert GUID to byte array
-		const hexGroups = value
-			.split("-")
-			.map((group) => group.match(/.{1,2}/g) || []);
-		const bytes = new Uint8Array(
-			hexGroups.flat().map((hex) => parseInt(hex, 16))
-		);
+		const hexGroups = value.split("-").map((group) => group.match(/.{1,2}/g) || []);
+		const bytes = new Uint8Array(hexGroups.flat().map((hex) => parseInt(hex, 16)));
 
 		// Write the 16-byte GUID
 		this.writeBytes(bytes);
@@ -174,6 +169,6 @@ export class BaseEndianWriter {
 	 * Get the actual written portion of the buffer as a new Buffer instance.
 	 */
 	public toArrayBuffer() {
-		return new Uint8Array(this.buffer.subarray(0, this.position)).buffer
+		return new Uint8Array(this.buffer.subarray(0, this.position)).buffer;
 	}
 }
