@@ -42,7 +42,6 @@ test("Serializes", async () => {
 	const writer = new XGraphV1.Writer();
 	writer.serialize(node);
 
-	await Bun.write("./data.bin", writer.toArrayBuffer());
 });
 
 test("Serializes then deserializes", () => {
@@ -51,8 +50,6 @@ test("Serializes then deserializes", () => {
 
 	const reader = new XGraphV1.Reader(writer.toArrayBuffer());
 	reader.deserialize();
-	// console.log(node)
 	expect(reader.root).toBeDefined()
 	expect(node).toEqual(reader.root!);
-	// console.log(reader.root?.children[1].goals)
 });
