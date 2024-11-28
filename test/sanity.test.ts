@@ -25,21 +25,12 @@ const node: XGraphV1.Node = {
 			goals: [
 				{
 					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
-					description: "Goal about yoru mom",
-					state: XGraphV1.GoalState.Completed,
-					name: "Leaflet 1"
 				},
 				{
 					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
-					description: "iqwdjoiqwjdiojqwd",
-					state: XGraphV1.GoalState.NotStarted,
-					name: "Leaflet 2"
 				},
 				{
 					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
-					description: "weqffewqfweqfweqfwe",
-					state: XGraphV1.GoalState.Failed,
-					name: "Leaflet 3"
 				}
 			],
 			children: [],
@@ -50,6 +41,8 @@ const node: XGraphV1.Node = {
 test("Serializes", async () => {
 	const writer = new XGraphV1.Writer();
 	writer.serialize(node);
+
+	await Bun.write("./data.bin", writer.toArrayBuffer());
 });
 
 test("Serializes then deserializes", () => {
@@ -58,7 +51,8 @@ test("Serializes then deserializes", () => {
 
 	const reader = new XGraphV1.Reader(writer.toArrayBuffer());
 	reader.deserialize();
-
+	// console.log(node)
 	expect(reader.root).toBeDefined()
 	expect(node).toEqual(reader.root!);
+	// console.log(reader.root?.children[1].goals)
 });

@@ -3,19 +3,16 @@
 // See README in the root project for more information.
 // ============================================================================
 
+import { createHash } from "crypto";
 import { BaseEndianReader, BaseEndianWriter } from "../endian";
 
 // ============================================================================
 
-function computeChecksum(data: Buffer): number {
-	let checksum = 0;
-	for (let i = 0; i < data.byteLength; i++) {
-		checksum = (checksum + data.readUint8(i)) & 0xffffffff;
-	}
-	return checksum;
+function computeChecksum(data: Uint8Array) {
+	if (Bun !== undefined)
+		return Buffer.from(Bun.MD5.hash(data).buffer).toString("base64");
+	return createHash("md5").update(data).digest().toString("base64");
 }
-
-// ============================================================================
 
 /** Version 1 of XGraph */
 export namespace XGraphV1 {
@@ -24,13 +21,6 @@ export namespace XGraphV1 {
 	export const MAX_NODES = 4;
 	export const MAX_GOALS = 3;
 	export const MAX_DEPTH = 255;
-
-	export enum GoalState {
-		NotStarted = 0,
-		InProgress = 1,
-		Completed = 2,
-		Failed = 3,
-	}
 
 	/** Header layout of XGraph */
 	export interface Header {
@@ -41,10 +31,7 @@ export namespace XGraphV1 {
 	}
 
 	export interface Goal {
-		name: string;
 		goalGUID: string;
-		state: GoalState;
-		description: string;
 	}
 
 	export interface Node {
@@ -91,16 +78,21 @@ export namespace XGraphV1 {
 		}
 
 		private validateChecksum(): void {
-			if (this.buffer.byteLength < 4) {
-				throw new Error("Checksum not computable");
+			if (this.buffer.length < 24) throw new Error("Data is invalid, unable to compute checksum");
+
+			// NOTE(W2): +1 NULL BYTE FROM CSTRING
+			this.position = this.buffer.byteLength - (24 + 1);
+			const expectedChecksum = computeChecksum(
+				new Uint8Array(this.buffer.subarray(0, this.position))
+			);
+
+			const receivedChecksum = this.readCString();
+			if (receivedChecksum !== expectedChecksum) {
+				throw new Error(`Bad Checksum. Expected: ${expectedChecksum}, Got: ${receivedChecksum}`);
 			}
 
-			const view = this.buffer.subarray(0, this.position - 4);
-			const currentChecksum = this.buffer.readUint32LE(this.buffer.byteLength - 4);
-			const expectedChecksum = computeChecksum(view);
-			if (currentChecksum !== expectedChecksum) {
-				throw new Error(`Invalid Checksum Has: ${currentChecksum}, Got: ${expectedChecksum}`);
-			}
+			// Back to start to read the data
+			this.position = 0;
 		}
 
 		private readNode(depth: number, parent?: Node) {
@@ -124,10 +116,10 @@ export namespace XGraphV1 {
 
 			for (let i = 0; i < goalCount; i++) {
 				node.goals.push({
-					name: this.readCString(),
+					// name: this.readCString(),
 					goalGUID: this.readGuid(),
-					state: this.readUInt32(),
-					description: this.readCString(),
+					// state: this.readUInt32(),
+					// description: this.readCString(),
 				});
 			}
 
@@ -181,10 +173,10 @@ export namespace XGraphV1 {
 			this.writeInt16(node.goals.length); // This node is made up N Goals
 			this.writeInt16(node.children.length); // This node is made up N Children nodes
 			for (const goal of node.goals) {
-				this.writeCString(goal.name);
+				// this.writeCString(goal.name);
 				this.writeGuid(goal.goalGUID);
-				this.writeUInt32(goal.state);
-				this.writeCString(goal.description);
+				// this.writeUInt32(goal.state);
+				// this.writeCString(goal.description);
 			}
 
 			this.writePadding(8);
@@ -194,8 +186,8 @@ export namespace XGraphV1 {
 		}
 
 		private finalizeChecksum(): void {
-			const view = this.buffer.subarray(0, this.buffer.byteLength - 4);
-			this.writeUInt32(computeChecksum(view));
+			var data = this.buffer.subarray(0, this.position);
+			this.writeCString(computeChecksum(new Uint8Array(data)));
 		}
 
 		private getTotalNodeCount(node: Node): number {
