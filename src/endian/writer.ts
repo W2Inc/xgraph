@@ -142,12 +142,8 @@ export class BaseEndianWriter {
 	 * @param value The GUID string to write.
 	 */
 	protected writeGuid(value: string): void {
-		// Convert GUID to byte array
-		const hexGroups = value.split("-").map((group) => group.match(/.{1,2}/g) || []);
-		const bytes = new Uint8Array(hexGroups.flat().map((hex) => parseInt(hex, 16)));
-
-		// Write the 16-byte GUID
-		this.writeBytes(bytes);
+		this.writeCString(value);
+		// this.writeBytes(GuidConverter.stringToBytes(value));
 	}
 
 	/**

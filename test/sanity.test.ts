@@ -24,13 +24,13 @@ const node: XGraphV1.Node = {
 			parentId: 0,
 			goals: [
 				{
-					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
+					goalGUID: "d0fd9301-e04c-e67d-865e-a075db322e13",
 				},
 				{
-					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
+					goalGUID: "d0fd9301-e04c-e67d-865e-a075db322e13",
 				},
 				{
-					goalGUID: "502721f4-48cd-4379-821f-df0f0ba089ae",
+					goalGUID: "d0fd9301-e04c-e67d-865e-a075db322e13",
 				}
 			],
 			children: [],
@@ -41,7 +41,7 @@ const node: XGraphV1.Node = {
 test("Serializes", async () => {
 	const writer = new XGraphV1.Writer();
 	writer.serialize(node);
-
+	// await Bun.write("./data.bin", writer.toArrayBuffer());
 });
 
 test("Serializes then deserializes", () => {

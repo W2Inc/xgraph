@@ -138,19 +138,9 @@ export class BaseEndianReader {
 	 * @returns The GUID string.
 	 */
 	protected readGuid(): string {
-		this.ensureAvailable(16);
-		const bytes = this.buffer.subarray(this.position, this.position + 16);
-		this.position += 16;
-
-		// Convert bytes to GUID string format
-		const guid = [
-			bytes.toString("hex", 0, 4),
-			bytes.toString("hex", 4, 6),
-			bytes.toString("hex", 6, 8),
-			bytes.toString("hex", 8, 10),
-			bytes.toString("hex", 10, 16),
-		].join("-");
-		return guid;
+		return this.readCString();
+		// const bytes = this.buffer.subarray(this.position, this.position + 16);
+		// return GuidConverter.bytesToString(new Uint8Array(bytes));
 	}
 
 	/**

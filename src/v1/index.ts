@@ -134,6 +134,7 @@ export namespace XGraphV1 {
 			for (let i = 0; i < childrenCount; i++) {
 				this.readNode(depth + 1, node);
 			}
+
 		}
 	}
 
@@ -160,16 +161,15 @@ export namespace XGraphV1 {
 		}
 
 		private writeNode(parentId: number, node: Node, depth: number) {
-			if (depth > MAX_DEPTH) throw new Error(`Graph with a depth of: ${depth} is too large!`);
-
-			this.writeInt16(node.id); // Current Id
-			this.writeInt16(parentId); // Parent Id
-
+			if (depth > MAX_DEPTH)
+				throw new Error(`Graph with a depth of: ${depth} is too large!`);
 			if (node.goals.length > MAX_GOALS)
 				throw new Error(`Node can't have more than ${MAX_GOALS} goals.`);
 			if (node.children.length > MAX_NODES)
 				throw new Error(`Node can't have more than ${MAX_NODES} children.`);
 
+			this.writeInt16(node.id); // Current Id
+			this.writeInt16(parentId); // Parent Id
 			this.writeInt16(node.goals.length); // This node is made up N Goals
 			this.writeInt16(node.children.length); // This node is made up N Children nodes
 			for (const goal of node.goals) {
